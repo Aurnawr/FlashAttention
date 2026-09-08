@@ -17,20 +17,21 @@ def add_kernel(
     PID = tl.program_id(axis= 0) 
     block_start = PID * BLOCK_SIZE
     offsets = block_start + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < n_elements # masking the elements which are out of bounds from the arrays 
 
     # “Load my chunk of X and Y, perform the operation on the whole chunk, and write my chunk of Z.”
-    x = tl.load(x_ptr + offsets) 
-    y = tl.load(y_ptr + offsets)
+    x = tl.load(x_ptr + offsets, mask = mask , other = None) 
+    y = tl.load(y_ptr + offsets, mask = mask , other = None)
     z = x + y  
 
     #write data back to HBM
-    tl.store(output_ptr + offsets)
+    tl.store(z_ptr + offsets, z , mask = None)
 
 
 
     
 
-# add function 
+# add wrapper function 
 def add (x,y):
     # preallocate empty tensor 
     z = torch.empty_like(x, device = DEVICE)
