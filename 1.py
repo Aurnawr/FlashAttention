@@ -4,15 +4,30 @@ import triton.language as tl
 DEVICE = torch.device (f'cuda: {torch.cuda.current_device()}')
 
 # actual kernel 
-@triton.jit # decorator tells the function as a triton function
+@triton.jit # decorator tells that the function is a triton function
 def add_kernel(
-    x_ptr,
+    x_ptr, # points to the first element of the array
     y_ptr,
     z_ptr,
     n_elements,
     BLOCK_SIZE: tl.constexpr, # defines the argument as a constant during compile time 
 
 ):
+    # “I am program PID, and I am responsible for this chunk of the array.”
+    PID = tl.program_id(axis= 0) 
+    block_start = PID * BLOCK_SIZE
+    offsets = block_start + tl.arange(0, BLOCK_SIZE)
+
+    # “Load my chunk of X and Y, perform the operation on the whole chunk, and write my chunk of Z.”
+    x = tl.load(x_ptr + offsets) 
+    y = tl.load(y_ptr + offsets)
+    z = x + y  
+
+    #write data back to HBM
+    tl.store(output_ptr + offsets)
+
+
+
     
 
 # add function 
@@ -25,9 +40,9 @@ def add (x,y):
 
     # defining our launch grid
     n_elements = z.numel()
-    grid = lambda meta: (triton.cdiv(n_elements,meta['BLOCK_SIZE']), ) # meta is a dictionary and grid is a tuple for number of programs 
+    grid = lambda meta: (triton.cdiv(n_elements,meta['BLOCK_SIZE']), ) # meta is a dictionary and grid is a tuple for number of programs  (4,)
 
-    # defining the kernel 
+    # calling the kernel 
     add_kernel[grid](
         x,
         y,
