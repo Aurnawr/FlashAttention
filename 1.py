@@ -44,7 +44,7 @@ def add (x,y):
     grid = lambda meta: (triton.cdiv(n_elements,meta['BLOCK_SIZE']), ) # meta is a dictionary and grid is a tuple for number of programs  (4,)
 
     # calling the kernel 
-    add_kernel[grid](
+    add_kernel[grid](    # launch add kernel over the whole grid 
         x,
         y,
         z,
