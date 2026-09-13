@@ -63,13 +63,29 @@ def add (x,y):
             line_vals=['triton', 'torch'],
             line_names=['Triton', "Torch"],
             styles=[('blue','-'), ('green', '-')],
-            ylabel='GB/s'
-            plot_name='vector-add-performance'
+            ylabel='GB/s',
+            plot_name='vector-add-performance',
             args={},
 
         )
 )
 
+#defining the benchmark function 
+def benchmark(size, provider):
+    #create input data
+    x = torch.randn(size, device = DEVICE)
+    y = torch.rand(size, device= DEVICE)
+
+    quantiles = [0.5,0.05, 0.95]
+
+    if provider == 'torch':
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: x + y, quantiles=quantiles)
+    if provider == "triton": 
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: add(x,y), quantiles=quantiles)
+
+    gbps = lambda ms: 3*x.numel()*x.element_size()* 1e-9 /(ms * 1e-3)
+
+    return gbps(ms=ms), gbps(ms=max_ms), gbps(ms=min_ms)
 
 
 
@@ -91,3 +107,9 @@ def test_add_kernel (size, atol=1e-3,rtol=1e-3,device = DEVICE):
 
 test_add_kernel( size = 4096)
 test_add_kernel( size = 4097)
+
+#running the benchmark
+
+import sys 
+if len(sys.argv) >1 and sys.argv[1] == "--benchmark":
+    benchmark.run(save_path='plots', print_data=True)
