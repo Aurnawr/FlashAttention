@@ -1,7 +1,7 @@
 import torch
 import triton 
 import triton.language as tl
-DEVICE = torch.device (f'cuda: {torch.cuda.current_device()}')
+DEVICE = torch.device (f'cuda:{torch.cuda.current_device()}')
 
 # actual kernel 
 @triton.jit # decorator tells that the function is a triton function
@@ -26,7 +26,6 @@ def add_kernel(
 
     #write data back to HBM
     tl.store(z_ptr + offsets, z , mask = None)
-
 
 
     
@@ -55,9 +54,27 @@ def add (x,y):
     return z
 
 
+@triton.testing.perf_report(
+        triton.testing.Benchmark(
+            x_names=['size'],
+            x_vals=[2**i for i in range (12,28,1)],
+            x_log = True,
+            line_arg='provider',
+            line_vals=['triton', 'torch'],
+            line_names=['Triton', "Torch"],
+            styles=[('blue','-'), ('green', '-')],
+            ylabel='GB/s'
+            plot_name='vector-add-performance'
+            args={},
+
+        )
+)
 
 
 
+
+
+#testing the kernel 
 
 def test_add_kernel (size, atol=1e-3,rtol=1e-3,device = DEVICE):
     # create test data 
@@ -70,3 +87,7 @@ def test_add_kernel (size, atol=1e-3,rtol=1e-3,device = DEVICE):
     # compare 
     torch.testing.assert_close(z_tri, z_ref, atol=atol, rtol=rtol)
     print ('pass')
+
+
+test_add_kernel( size = 4096)
+test_add_kernel( size = 4097)
