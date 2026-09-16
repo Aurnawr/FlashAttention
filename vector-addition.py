@@ -25,7 +25,7 @@ def add_kernel(
     z = x + y  
 
     #write data back to HBM
-    tl.store(z_ptr + offsets, z , mask = None)
+    tl.store(z_ptr + offsets, z , mask = None) # (pointer, data to write back, mask)
 
 
     
@@ -53,7 +53,7 @@ def add (x,y):
 
     return z
 
-
+#reporting the benchmark 
 @triton.testing.perf_report(
         triton.testing.Benchmark(
             x_names=['size'],

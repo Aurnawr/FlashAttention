@@ -19,6 +19,87 @@ def naive_softmax(x):
 
     return out # in total, we did 8MN + 4M memory operations
 
+
+# step 3 
+properties = triton.runtime.driver.activate.utils.get_device_properties(device.index)
+num_sm = properties["multiprocessor_count"]
+num_regs = properties['max_num_regs']
+sram_per_sm = properties['max_shared_mem']
+warp_size = properties['warpSize']
+
+
+#step 4 
+def softmax (x):
+    n_rows, n_cols = x.shape
+    BLOCK_SIZE = triton.next_power_of_2(n_cols)
+    num_warps = 4
+    if BLOCK_SIZE>= 2048:
+        num_warps = 8 
+    if BLOCK_SIZE>= 4096:
+        num_warps = 16
+
+    # pipelining (loading memory while the gpu is executing)
+    num_stages = 4 if sram_per_sm>=200_000 else 2 
+
+
+    y = torch.empty_like(x)
+
+    kernel =_softmax_kernel.warmup(
+        x,y,
+        n_rows,n_cols,
+        BLOCK_SIZE=BLOCK_SIZE,
+        num_warps=num_warps,
+        num_stages=num_stages,
+        grid=(1,)
+    )
+
+    kernel._init_handles()
+    n_regs_per_program = kernel.n_regs
+    sram_needed_per_program = kernel.metadata.shared
+
+    reg_occupancy = num_regs // (n_regs_per_program * warp_size * num_warps)
+    # num_regs = 65536 ----> regs in an SM
+    # each program might use 
+        # n_regs_per_program = 32
+        # n_warps = 8
+        # warp_size = 32
+    # each program needs (n_regs_per_program * warp_size * num_warps) registers 
+    # 65536 // ( 8 * 32 * 32 ) = 8 programs per SM
+
+    sram_occupancy = sram_per_sm // sram_needed_per_program
+
+    programs_per_sm = min( reg_occupancy, sram_occupancy )
+    num_programs = min (num_sm * programs_per_sm, n_rows)
+
+    grid = (num_programs, 1, 1)
+    kernel[grid](
+        x,y,
+        x.stride(0), y.stride(0),
+        n_rows, n_cols,
+
+    )
+
+    return y 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # step 2 
 def test_softmax_kernel(size: tuple, atol=1e-3, rtol=1e-3, device=device):
     torch.manual_seed(0)
