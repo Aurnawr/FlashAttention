@@ -28,7 +28,7 @@ sram_per_sm = properties['max_shared_mem']
 warp_size = properties['warpSize']
 
 
-#step 4 
+
 def softmax (x):
     n_rows, n_cols = x.shape
     BLOCK_SIZE = triton.next_power_of_2(n_cols)
@@ -44,7 +44,7 @@ def softmax (x):
 
     y = torch.empty_like(x)
 
-    kernel =_softmax_kernel.warmup(
+    kernel =__softmax_kernel.warmup(
         x,y,
         n_rows,n_cols,
         BLOCK_SIZE=BLOCK_SIZE,
@@ -54,7 +54,7 @@ def softmax (x):
     )
 
     kernel._init_handles()
-    n_regs_per_program = kernel.n_regs
+    n_regs_per_program = kernel.n_regs # ------> amount of registers in each thread residing in that program 
     sram_needed_per_program = kernel.metadata.shared
 
     reg_occupancy = num_regs // (n_regs_per_program * warp_size * num_warps)
@@ -81,12 +81,24 @@ def softmax (x):
 
     return y 
 
+# basically, in the above function, we try to heuristically define the hyperparameters such as grid on the basis of block size. 
 
 
 
+# step 4
 
+@triton.jit 
 
-
+def _softmax_kernel(
+    input_ptr, output_ptr, 
+    input_row_stride, output_row_stride,
+    n_rows, n_cols,
+    BLOCK_SIZE: tl.constexpr, # -------> we dont have to pass because it already stored during warmup calling
+    num_stages: tl.constexpr,
+):
+    # each PID handles one row 
+    PID = tl.program_id(0)
+    
 
 
 
