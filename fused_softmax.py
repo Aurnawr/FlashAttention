@@ -98,8 +98,20 @@ def _softmax_kernel(
 ):
     # each PID handles one row 
     PID = tl.program_id(0)
-    
+    row_step = tl.num_programs(0) # -----> we will use this only when we have a remainder i.e n_rows > num_programs 
 
+    #calculating the softmax for each single row in this loop 
+    for row_idx in tl.range(PID, n_rows, row_step, num_stages=num_stages):
+        row_start_ptr = input_ptr + row_idx * input_row_stride
+        col_offsets = tl.arange(0,BLOCK_SIZE)
+        input_ptrs = row_start_ptr + col_offsets #---> all the pointers from the start of the row till the end (till the blocksize)
+        mask = col_offsets < n_cols
+        row = tl.load(input_ptrs, mask=mask, other=float('-inf') ) # shape (BLOCK_SIZE) which is roughly (n_cols)
+
+        #numerical stability
+        row_minus_max = row - tl.max(row,axis = 0)
+
+    
 
 
 
